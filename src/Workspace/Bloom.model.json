@@ -1,0 +1,9 @@
+{
+  "className": "BloomEffect",
+  "properties": {
+    "SourceAssetId": 4607457995.0,
+    "Threshold": 0.800000011920929,
+    "Intensity": 1.0,
+    "Size": 56.0
+  }
+}

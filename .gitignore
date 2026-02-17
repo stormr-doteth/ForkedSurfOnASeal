@@ -1,0 +1,23 @@
+# Roblox place files (built outputs)
+*.rbxlx
+*.rbxl
+
+# Roblox Studio lock files
+*.rbxlx.lock
+*.rbxl.lock
+
+# Rojo sourcemap
+sourcemap.json
+
+# Build artifacts
+test_build.rbxl
+
+# MCP binary
+rbx-studio-mcp.exe
+
+# Rokit tool binaries
+~/.rokit/
+
+# Local MCP and Claude config
+.mcp.json
+.claude/

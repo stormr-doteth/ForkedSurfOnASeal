@@ -1,0 +1,132 @@
+{
+  "name": "SURF_ON_A_SEAL_ROJOEDITION",
+  "tree": {
+    "$className": "DataModel",
+    "Lighting": {
+      "$properties": {
+        "Ambient": [
+          0.3294117748737335,
+          0.3843137323856354,
+          0.5176470875740051
+        ],
+        "Brightness": 2.0,
+        "EnvironmentDiffuseScale": 1.0,
+        "EnvironmentSpecularScale": 1.0,
+        "FogColor": [
+          0.7529412508010864,
+          0.7529412508010864,
+          0.7529412508010864
+        ],
+        "GeographicLatitude": 65.05244445800781,
+        "GlobalShadows": true,
+        "LightingStyle": "Realistic",
+        "OutdoorAmbient": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "Outlines": false,
+        "PrioritizeLightingQuality": true,
+        "ShadowSoftness": 0.0,
+        "Technology": "Future",
+        "TimeOfDay": "14:08:11"
+      },
+      "$path": "src/Lighting"
+    },
+    "ReplicatedFirst": {
+      "$path": "src/ReplicatedFirst"
+    },
+    "ReplicatedStorage": {
+      "$path": "src/ReplicatedStorage"
+    },
+    "ServerScriptService": {
+      "$path": "src/ServerScriptService"
+    },
+    "ServerStorage": {
+      "$path": "src/ServerStorage"
+    },
+    "SoundService": {
+      "$properties": {
+        "RespectFilteringEnabled": true
+      },
+      "$path": "src/SoundService"
+    },
+    "StarterGui": {
+      "$properties": {
+        "ScreenOrientation": "Sensor"
+      },
+      "$path": "src/StarterGui"
+    },
+    "StarterPack": {
+      "$path": "src/StarterPack"
+    },
+    "StarterPlayer": {
+      "$properties": {
+        "AutoJumpEnabled": false,
+        "CameraMaxZoomDistance": 128.0,
+        "CharacterUseJumpPower": false
+      },
+      "$path": "src/StarterPlayer"
+    },
+    "Workspace": {
+      "$properties": {
+        "CollisionGroupData": {
+          "BinaryString": "AQkABHn///8HRGVmYXVsdAEEdv7//xlQbHVnaW5fVW5zZWxlY3RhYmxlX0dyb3VwAgRK/v//D1Zpc3VhbENvbGxpc2lvbgMEXf///xBTdHVkaW9TZWxlY3RhYmxlBARL/v//CVNlYWxSb290cwUEQ/7//wZEZWJyaXMGBP/+//8FQmFsbHMHBED+//8IQmFsbFdhbGwIBAn+//8MTW9kaWZpZXJSYWlu"
+        },
+        "FallenPartsDestroyHeight": -50000.0,
+        "NextGenerationReplication": {
+          "Enum": 0
+        },
+        "PlayerScriptsUseInputActionSystem": {
+          "Enum": 0
+        },
+        "RolloutValidationBinaryExpectedValue": {
+          "BinaryString": ""
+        },
+        "RolloutValidationBinaryString": {
+          "BinaryString": ""
+        },
+        "RolloutValidationSharedExpectedValue": {
+          "SharedString": ""
+        },
+        "RolloutValidationSharedString": {
+          "SharedString": ""
+        },
+        "UseFixedSimulation": {
+          "Enum": 0
+        },
+        "UseNewLuauTypeSolver": "Disabled",
+        "WorldPivotData": {
+          "OptionalCFrame": {
+            "position": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              [
+                1.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                1.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                1.0
+              ]
+            ]
+          }
+        }
+      },
+      "$attributes": {
+        "Rojo_Target_CurrentCamera": "3f2a8624bf029132099a8cfe0000136d"
+      },
+      "$path": "src/Workspace"
+    }
+  }
+}
