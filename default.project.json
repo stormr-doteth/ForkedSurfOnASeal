@@ -64,7 +64,8 @@
       "$properties": {
         "AutoJumpEnabled": false,
         "CameraMaxZoomDistance": 128.0,
-        "CharacterUseJumpPower": false
+        "CharacterUseJumpPower": false,
+        "GameSettingsAvatar": "R6"
       },
       "$path": "src/StarterPlayer"
     },

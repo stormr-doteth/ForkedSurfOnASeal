@@ -13,7 +13,9 @@ ModifierDirectory.ActiveModifiers = {
 	"InfiniteBoostsModifier",
 	"GubbyModifier",
 	"RainingSealsModifier",
-	"InvulnerabilityModifier"
+	"InvulnerabilityModifier",
+	"NightModeModifier",
+	"BlockySappyModifier"
 }
 
 ModifierDirectory.InvulnerabilityModifier = {
@@ -62,6 +64,20 @@ ModifierDirectory.GubbyModifier = {
 	IconID = "rbxassetid://115233777642994",
 	FlavorText = "GUBBY MODE",
 	Description = "All seals become GUBBY!",
+	Price = 19,
+}
+
+ModifierDirectory.NightModeModifier = {
+	IconID = "rbxassetid://111070540811320",
+	FlavorText = "Night Mode",
+	Description = "Race under the cover of darkness!",
+	Price = 19,
+}
+
+ModifierDirectory.BlockySappyModifier = {
+	IconID = "rbxassetid://111070540811320",
+	FlavorText = "BLOCKY MODE",
+	Description = "All seals become BLOCKY!",
 	Price = 19,
 }
 

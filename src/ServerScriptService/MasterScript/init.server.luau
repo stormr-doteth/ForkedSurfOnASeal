@@ -25,8 +25,8 @@ local TimerMultiplier = GameStats.TimerMultiplier
 
 -- Settings --
 
-local IntermissionTime = 40 -- 40
-local RoundTime = 360 -- 360
+local IntermissionTime = 12 -- 40
+local RoundTime = 10 -- 360
 local TrackSegments = 20 -- 20
 local SegmentWaitTime = 1 -- 1
 
@@ -388,19 +388,22 @@ end
 end]]
 
 local function GenerateNewModifiers()
-	
+
 	ActiveModifiers = {}
-	
+
 	math.randomseed(os.time())
-	
-	for i = 1, 3 do
+
+	-- TESTING: Force BlockySappyModifier every round
+	ActiveModifiers["BlockySappyModifier"] = true
+
+	for i = 1, 2 do
 		local SelectedModifier = nil
 		repeat
 			SelectedModifier = ModifierDirectory.ActiveModifiers[math.random(1, #ModifierDirectory.ActiveModifiers)]
 		until ActiveModifiers[SelectedModifier] == nil
 		ActiveModifiers[SelectedModifier] = true
 	end
-	
+
 end
 
 
@@ -550,13 +553,13 @@ while true do
 	-- Wait for intermission
 	for i = (IntermissionTime), 1, -1 do
 		RoundTimer.Value = i
-		if i == 20 then
+		if i == 10 then
 			ShowModifiersEvent:FireAllClients(ActiveModifiers)
 		end
-		if i == 10 then
+		if i == 5 then
 			RaceStartEvent:FireAllClients()
 		end
-		if i == 5 then
+		if i == 3 then
 			TeleportOutstandingPlayers() -- make sure no one is being naughty
 		end
 		wait(1)
