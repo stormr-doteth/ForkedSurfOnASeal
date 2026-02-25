@@ -62,6 +62,26 @@ Seven purchasable round modifiers (Clown, Fart, Gravity, Gubby, InfiniteBoosts, 
 
 `PurchaseHandler` processes Dev Products and GamePasses via `MarketplaceService.ProcessReceipt`. Uses a separate `"PurchaseHistory"` DataStore for idempotency. Featured Shop uses a ticket-based purchase flow through BindableFunctions.
 
+### Time Trials System
+
+A separate sub-place (`timetrials.project.json`, built via `rojo build timetrials.project.json -o timetrials.rbxlx`) providing solo practice runs on individual tracks.
+
+**Key files:**
+- `src/TimeTrials/StarterGui/TimeTrialUI.client.luau` — all client UI: track picker, live timer/progress bar, splits panel, loading screen, finish splash, and results screen
+- `src/TimeTrials/ServerScriptService/TimeTrialServer.server.luau` — server: track building, timing, PB saving, split tracking
+
+**UI flow:** `picker` → `waiting` (loading overlay) → `racing` (timer + progress bar + splits) → `finish` (FINISH! splash slides in from right, holds ~1.5s) → `results` (PersonalResultsFrame animates in with split breakdown)
+
+**Reuses main game UI:** The time trials client disables several built-in scripts and drives their UI elements directly:
+- `RaceFinishScript` (disabled) — we control `FinishFrame` for the finish splash
+- `RaceEndMenuScript` (disabled) — we populate `PersonalResultsFrame` / `StatsFrame` with splits data
+- `TimerLabelScript` (disabled) — we drive `BuiltInTimerLabel` as a count-up timer
+- `ProgressBarScript` (disabled) — we drive pin position from player Z-position
+
+**Important:** Any full-screen frame (like `RaceFinishFrame`, `LoadingOverlay`) must be set `Visible = false` when not actively shown, otherwise it blocks mouse input (camera controls). The loading screen slides off like a curtain (position tween) rather than fading.
+
+**Networking remotes** (under `ReplicatedStorage.Networking`): `SelectTrack`, `ReturnToLobby`, `CancelRun`, `ReadyForCountdown` (client→server); `TrackList`, `StartTimer`, `StopTimer`, `ShowTimeTrialResults`, `UpdateProgessBar`, `SendBestSplits` (server→client); `ReportSplits` (client→server).
+
 ## Important Caveats
 
 - **Client scripts are binary .rbxm** — StarterPlayerScripts (SappyControls), StarterCharacterScripts, and all StarterGui screens are NOT editable as text. Only server and ReplicatedStorage `.luau` files are source-editable.

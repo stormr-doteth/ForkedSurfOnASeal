@@ -1,0 +1,190 @@
+{
+  "name": "SurfOnASeal_TimeTrials",
+  "tree": {
+    "$className": "DataModel",
+    "Lighting": {
+      "$properties": {
+        "Ambient": [
+          0.3294117748737335,
+          0.3843137323856354,
+          0.5176470875740051
+        ],
+        "Brightness": 2.0,
+        "EnvironmentDiffuseScale": 1.0,
+        "EnvironmentSpecularScale": 1.0,
+        "FogColor": [
+          0.7529412508010864,
+          0.7529412508010864,
+          0.7529412508010864
+        ],
+        "GeographicLatitude": 65.05244445800781,
+        "GlobalShadows": true,
+        "LightingStyle": "Realistic",
+        "OutdoorAmbient": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "Outlines": false,
+        "PrioritizeLightingQuality": true,
+        "ShadowSoftness": 0.0,
+        "Technology": "Future",
+        "TimeOfDay": "14:08:11"
+      }
+    },
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "BillboardGui": {
+        "$path": "src/ReplicatedStorage/BillboardGui.rbxm"
+      },
+      "Cosmetics": {
+        "$path": "src/ReplicatedStorage/Cosmetics"
+      },
+      "Directories": {
+        "$path": "src/ReplicatedStorage/Directories"
+      },
+      "GameAssets": {
+        "$path": "src/ReplicatedStorage/GameAssets"
+      },
+      "GameStats": {
+        "$path": "src/ReplicatedStorage/GameStats"
+      },
+      "HelperModules": {
+        "$path": "src/ReplicatedStorage/HelperModules"
+      },
+      "PlayerData": {
+        "$path": "src/ReplicatedStorage/PlayerData"
+      },
+      "StartShowcase": {
+        "$path": "src/ReplicatedStorage/StartShowcase.rbxm"
+      },
+      "Networking": {
+        "$className": "Folder",
+        "Client": {
+          "$className": "Folder",
+          "BindableEvents": {
+            "$path": "src/ReplicatedStorage/Networking/Client/BindableEvents"
+          },
+          "BindableFunctions": {
+            "$path": "src/ReplicatedStorage/Networking/Client/BindableFunctions"
+          },
+          "RemoteEvents": {
+            "$path": "src/TimeTrials/ReplicatedStorage/Networking/Client/RemoteEvents"
+          },
+          "RemoteFunctions": {
+            "$path": "src/ReplicatedStorage/Networking/Client/RemoteFunctions"
+          }
+        },
+        "Server": {
+          "$className": "Folder",
+          "BindableEvents": {
+            "$path": "src/ReplicatedStorage/Networking/Server/BindableEvents"
+          },
+          "BindableFunctions": {
+            "$path": "src/ReplicatedStorage/Networking/Server/BindableFunctions"
+          },
+          "RemoteEvents": {
+            "$path": "src/TimeTrials/ReplicatedStorage/Networking/Server/RemoteEvents"
+          },
+          "RemoteFunctions": {
+            "$path": "src/ReplicatedStorage/Networking/Server/RemoteFunctions"
+          }
+        }
+      }
+    },
+    "ServerScriptService": {
+      "$path": "src/TimeTrials/ServerScriptService"
+    },
+    "ServerStorage": {
+      "$className": "ServerStorage",
+      "EndPlatform": {
+        "$className": "Model",
+        "$properties": {
+          "WorldPivotData": {
+            "OptionalCFrame": {
+              "position": [
+                -37.21165,
+                606.5,
+                -1572.6206
+              ],
+              "orientation": [
+                [
+                  -1.0,
+                  0.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  1.0,
+                  0.0
+                ],
+                [
+                  0.0,
+                  0.0,
+                  -1.0
+                ]
+              ]
+            }
+          }
+        },
+        "$attributes": {
+          "Rojo_Target_PrimaryPart": "6d4558568110723d086399330000a8e1"
+        }
+      },
+      "TrackSegments": {
+        "$path": "src/ServerStorage/TrackSegments"
+      }
+    },
+    "SoundService": {
+      "$properties": {
+        "RespectFilteringEnabled": true
+      }
+    },
+    "StarterGui": {
+      "$path": "src/TimeTrials/StarterGui"
+    },
+    "StarterPlayer": {
+      "$properties": {
+        "AutoJumpEnabled": false,
+        "CameraMaxZoomDistance": 128.0,
+        "CharacterUseJumpPower": false,
+        "GameSettingsAvatar": "R6"
+      },
+      "$path": "src/TimeTrials/StarterPlayer"
+    },
+    "Workspace": {
+      "$properties": {
+        "CollisionGroupData": {
+          "BinaryString": "AQkABHn///8HRGVmYXVsdAEEdv7//xlQbHVnaW5fVW5zZWxlY3RhYmxlX0dyb3VwAgRK/v//D1Zpc3VhbENvbGxpc2lvbgMEXf///xBTdHVkaW9TZWxlY3RhYmxlBARL/v//CVNlYWxSb290cwUEQ/7//wZEZWJyaXMGBP/+//8FQmFsbHMHBED+//8IQmFsbFdhbGwIBAn+//8MTW9kaWZpZXJSYWlu"
+        },
+        "FallenPartsDestroyHeight": -50000.0,
+        "NextGenerationReplication": {
+          "Enum": 0
+        },
+        "PlayerScriptsUseInputActionSystem": {
+          "Enum": 0
+        },
+        "RolloutValidationBinaryExpectedValue": {
+          "BinaryString": ""
+        },
+        "RolloutValidationBinaryString": {
+          "BinaryString": ""
+        },
+        "RolloutValidationSharedExpectedValue": {
+          "SharedString": ""
+        },
+        "RolloutValidationSharedString": {
+          "SharedString": ""
+        },
+        "UseFixedSimulation": {
+          "Enum": 0
+        },
+        "UseNewLuauTypeSolver": "Disabled"
+      },
+      "$attributes": {
+        "Rojo_Target_CurrentCamera": "4aa4c799080f0c1309ab9f4400002834"
+      },
+      "$path": "src/TimeTrials/Workspace"
+    }
+  }
+}
