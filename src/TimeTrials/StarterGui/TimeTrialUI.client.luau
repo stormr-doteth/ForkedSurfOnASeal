@@ -8,6 +8,8 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local ContextActionService = game:GetService("ContextActionService")
 
 local Player = Players.LocalPlayer
 local PlayerGui = Player:WaitForChild("PlayerGui")
@@ -27,11 +29,14 @@ local ShowTimeTrialResultsRemote = Networking.Client.RemoteEvents.ShowTimeTrialR
 local UpdateProgessBarRemote = Networking.Client.RemoteEvents.UpdateProgessBar
 local SendBestSplitsRemote = Networking.Client.RemoteEvents.SendBestSplits
 local ReportSplitsRemote = Networking.Server.RemoteEvents.ReportSplits
+local SoundManager = Networking.Client.BindableEvents.SoundManager
+
+local TrackPreviews = ReplicatedStorage:WaitForChild("TrackPreviews", 10)
 
 
 -- State --
 
-local currentScreen = "waiting" -- "waiting", "picker", "racing", "results"
+local currentScreen = "waiting" -- "waiting", "picker", "detail", "racing", "results"
 local timerRunning = false
 local timerStartTime = 0
 local timerConnection = nil
@@ -156,8 +161,16 @@ if not FinishTimeLabel then
 	finishStroke.Parent = FinishTimeLabel
 	FinishTimeLabel.Parent = FinishFrame
 end
+local FinishImage = FinishFrame:FindFirstChild("FinishImage")
 local RaceFinishScript = RaceFinishFrame:FindFirstChild("RaceFinishScript")
 if RaceFinishScript then RaceFinishScript.Disabled = true end
+
+-- Undo RaceFinishScript's ResetUI() which set FinishImage.ImageTransparency = 1
+if FinishImage then
+	FinishImage.ImageTransparency = 0
+	FinishImage.Size = UDim2.new(1.2, 0, 1.2, 0)
+	FinishImage.Position = UDim2.new(0.5, 0, 0.35, 0)
+end
 
 -- Hide RaceFinishFrame entirely until we need it (prevents blocking input)
 RaceFinishFrame.Visible = false
@@ -340,13 +353,229 @@ ReturnPadding.PaddingRight = UDim.new(0.05, 0)
 ReturnPadding.Parent = ReturnButton
 
 
+-- ============================================================
+-- TRACK DETAIL MODAL
+-- ============================================================
+
+local DetailModal = Instance.new("Frame")
+DetailModal.Name = "DetailModal"
+DetailModal.Size = UDim2.new(0.5, 0, 0.7, 0)
+DetailModal.Position = UDim2.new(0.5, 0, 0.5, 0)
+DetailModal.AnchorPoint = Vector2.new(0.5, 0.5)
+DetailModal.BackgroundColor3 = Color3.fromRGB(10, 15, 35)
+DetailModal.BackgroundTransparency = 0
+DetailModal.BorderSizePixel = 0
+DetailModal.Visible = false
+DetailModal.Parent = ScreenGui
+
+local DetailModalCorner = Instance.new("UICorner")
+DetailModalCorner.CornerRadius = UDim.new(0, 16)
+DetailModalCorner.Parent = DetailModal
+
+local DetailModalStroke = Instance.new("UIStroke")
+DetailModalStroke.Color = Color3.fromRGB(255, 230, 44)
+DetailModalStroke.Thickness = 2
+DetailModalStroke.Transparency = 0.5
+DetailModalStroke.Parent = DetailModal
+
+local DetailModalScale = Instance.new("UIScale")
+DetailModalScale.Scale = 1
+DetailModalScale.Parent = DetailModal
+
+-- Large viewport for track preview (~top 60%)
+local DetailViewport = Instance.new("ViewportFrame")
+DetailViewport.Name = "DetailViewport"
+DetailViewport.Size = UDim2.new(0.9, 0, 0.55, 0)
+DetailViewport.Position = UDim2.new(0.5, 0, 0.03, 0)
+DetailViewport.AnchorPoint = Vector2.new(0.5, 0)
+DetailViewport.BackgroundColor3 = Color3.fromRGB(20, 25, 45)
+DetailViewport.BorderSizePixel = 0
+DetailViewport.Ambient = Color3.fromRGB(180, 180, 180)
+DetailViewport.LightColor = Color3.fromRGB(255, 255, 255)
+DetailViewport.LightDirection = Vector3.new(-1, -1, -1)
+DetailViewport.Parent = DetailModal
+
+local DetailViewportCorner = Instance.new("UICorner")
+DetailViewportCorner.CornerRadius = UDim.new(0.03, 0)
+DetailViewportCorner.Parent = DetailViewport
+
+-- Orbit camera state for detail viewport
+local detailCameraYaw = 0
+local detailCameraPitch = 0.3
+local detailCameraDistance = 100
+local detailCameraCenter = Vector3.new(0, 0, 0)
+local detailCameraMinDist = 20
+local detailCameraMaxDist = 500
+local detailDragging = false
+local detailDragStartYaw = 0
+local detailDragStartPitch = 0
+local detailDragStartPos = Vector2.new(0, 0)
+
+local function UpdateDetailCamera()
+	local cam = DetailViewport.CurrentCamera
+	if not cam then return end
+
+	local cosP = math.cos(detailCameraPitch)
+	local sinP = math.sin(detailCameraPitch)
+	local cosY = math.cos(detailCameraYaw)
+	local sinY = math.sin(detailCameraYaw)
+
+	local offset = Vector3.new(
+		detailCameraDistance * cosP * sinY,
+		detailCameraDistance * sinP,
+		detailCameraDistance * cosP * cosY
+	)
+	cam.CFrame = CFrame.lookAt(detailCameraCenter + offset, detailCameraCenter)
+end
+
+DetailViewport.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		detailDragging = true
+		detailDragStartYaw = detailCameraYaw
+		detailDragStartPitch = detailCameraPitch
+		detailDragStartPos = Vector2.new(input.Position.X, input.Position.Y)
+	end
+end)
+
+DetailViewport.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		if detailDragging then
+			local delta = Vector2.new(input.Position.X, input.Position.Y) - detailDragStartPos
+			detailCameraYaw = detailDragStartYaw - delta.X * 0.005
+			detailCameraPitch = math.clamp(detailDragStartPitch + delta.Y * 0.005, -1.2, 1.2)
+			UpdateDetailCamera()
+		end
+	elseif input.UserInputType == Enum.UserInputType.MouseWheel then
+		detailCameraDistance = math.clamp(
+			detailCameraDistance - input.Position.Z * detailCameraDistance * 0.1,
+			detailCameraMinDist,
+			detailCameraMaxDist
+		)
+		UpdateDetailCamera()
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		detailDragging = false
+	end
+end)
+
+local SCROLL_SINK_ACTION = "TimeTrialScrollSink"
+
+local function SinkScroll()
+	ContextActionService:BindAction(SCROLL_SINK_ACTION, function()
+		return Enum.ContextActionResult.Sink
+	end, false, Enum.UserInputType.MouseWheel)
+end
+
+local function UnsinkScroll()
+	ContextActionService:UnbindAction(SCROLL_SINK_ACTION)
+end
+
+-- Track name label
+local DetailTrackName = Instance.new("TextLabel")
+DetailTrackName.Name = "DetailTrackName"
+DetailTrackName.Size = UDim2.new(0.9, 0, 0.1, 0)
+DetailTrackName.Position = UDim2.new(0.5, 0, 0.60, 0)
+DetailTrackName.AnchorPoint = Vector2.new(0.5, 0)
+DetailTrackName.BackgroundTransparency = 1
+DetailTrackName.Text = ""
+DetailTrackName.TextColor3 = Color3.fromRGB(255, 230, 44)
+DetailTrackName.TextScaled = true
+DetailTrackName.Font = Enum.Font.FredokaOne
+DetailTrackName.Parent = DetailModal
+addTextSizeConstraint(DetailTrackName, 36, 14)
+
+local DetailTrackNameStroke = Instance.new("UIStroke")
+DetailTrackNameStroke.Color = Color3.new(0, 0, 0)
+DetailTrackNameStroke.Thickness = 3
+DetailTrackNameStroke.Parent = DetailTrackName
+
+-- Personal best label
+local DetailPBLabel = Instance.new("TextLabel")
+DetailPBLabel.Name = "DetailPBLabel"
+DetailPBLabel.Size = UDim2.new(0.9, 0, 0.06, 0)
+DetailPBLabel.Position = UDim2.new(0.5, 0, 0.71, 0)
+DetailPBLabel.AnchorPoint = Vector2.new(0.5, 0)
+DetailPBLabel.BackgroundTransparency = 1
+DetailPBLabel.Text = "No time set"
+DetailPBLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+DetailPBLabel.TextScaled = true
+DetailPBLabel.Font = Enum.Font.GothamBold
+DetailPBLabel.Parent = DetailModal
+addTextSizeConstraint(DetailPBLabel, 28, 10)
+
+-- "PLAY NOW" button
+local DetailPlayButton = Instance.new("TextButton")
+DetailPlayButton.Name = "DetailPlayButton"
+DetailPlayButton.Size = UDim2.new(0.5, 0, 0.09, 0)
+DetailPlayButton.Position = UDim2.new(0.5, 0, 0.80, 0)
+DetailPlayButton.AnchorPoint = Vector2.new(0.5, 0)
+DetailPlayButton.BackgroundColor3 = Color3.fromRGB(40, 170, 80)
+DetailPlayButton.BorderSizePixel = 0
+DetailPlayButton.Text = "PLAY NOW"
+DetailPlayButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+DetailPlayButton.TextScaled = true
+DetailPlayButton.Font = Enum.Font.FredokaOne
+DetailPlayButton.AutoButtonColor = true
+DetailPlayButton.Parent = DetailModal
+
+local DetailPlayCorner = Instance.new("UICorner")
+DetailPlayCorner.CornerRadius = UDim.new(0.3, 0)
+DetailPlayCorner.Parent = DetailPlayButton
+
+local DetailPlayStroke = Instance.new("UIStroke")
+DetailPlayStroke.Color = Color3.new(0, 0, 0)
+DetailPlayStroke.Thickness = 3
+DetailPlayStroke.Parent = DetailPlayButton
+
+local DetailPlayPadding = Instance.new("UIPadding")
+DetailPlayPadding.PaddingTop = UDim.new(0.1, 0)
+DetailPlayPadding.PaddingBottom = UDim.new(0.1, 0)
+DetailPlayPadding.PaddingLeft = UDim.new(0.05, 0)
+DetailPlayPadding.PaddingRight = UDim.new(0.05, 0)
+DetailPlayPadding.Parent = DetailPlayButton
+
+-- "BACK TO ALL TRACKS" button
+local DetailBackButton = Instance.new("TextButton")
+DetailBackButton.Name = "DetailBackButton"
+DetailBackButton.Size = UDim2.new(0.4, 0, 0.06, 0)
+DetailBackButton.Position = UDim2.new(0.5, 0, 0.92, 0)
+DetailBackButton.AnchorPoint = Vector2.new(0.5, 0)
+DetailBackButton.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+DetailBackButton.BorderSizePixel = 0
+DetailBackButton.Text = "BACK TO ALL TRACKS"
+DetailBackButton.TextColor3 = Color3.fromRGB(200, 200, 200)
+DetailBackButton.TextScaled = true
+DetailBackButton.Font = Enum.Font.FredokaOne
+DetailBackButton.AutoButtonColor = true
+DetailBackButton.Parent = DetailModal
+
+local DetailBackCorner = Instance.new("UICorner")
+DetailBackCorner.CornerRadius = UDim.new(0.3, 0)
+DetailBackCorner.Parent = DetailBackButton
+
+local DetailBackStroke = Instance.new("UIStroke")
+DetailBackStroke.Color = Color3.fromRGB(0, 0, 0)
+DetailBackStroke.Thickness = 2
+DetailBackStroke.Parent = DetailBackButton
+
+local DetailBackPadding = Instance.new("UIPadding")
+DetailBackPadding.PaddingTop = UDim.new(0.1, 0)
+DetailBackPadding.PaddingBottom = UDim.new(0.1, 0)
+DetailBackPadding.PaddingLeft = UDim.new(0.05, 0)
+DetailBackPadding.PaddingRight = UDim.new(0.05, 0)
+DetailBackPadding.Parent = DetailBackButton
+
+
 -- Cancel Run button (visible during racing, beside progress bar)
 local CancelButton = Instance.new("TextButton")
 CancelButton.Name = "CancelButton"
 CancelButton.Size = UDim2.new(0.12, 0, 0.035, 0)
 CancelButton.Position = UDim2.new(0.9, 0, 0.02, 0)
 CancelButton.AnchorPoint = Vector2.new(0.5, 0)
-CancelButton.BackgroundColor3 = Color3.fromRGB(137, 207, 240)
+CancelButton.BackgroundColor3 = Color3.fromRGB(220, 50, 50)
 CancelButton.BackgroundTransparency = 0
 CancelButton.BorderSizePixel = 0
 CancelButton.Text = "Cancel Run"
@@ -380,9 +609,11 @@ CancelPadding.Parent = CancelButton
 
 local LoadingOverlay = Instance.new("ImageLabel")
 LoadingOverlay.Name = "LoadingOverlay"
-LoadingOverlay.Size = UDim2.new(1, 0, 1, 0)
+LoadingOverlay.Size = UDim2.new(2, 0, 2, 0)
+LoadingOverlay.AnchorPoint = Vector2.new(0.5, 0.5)
+LoadingOverlay.Position = UDim2.new(0.5, 0, 0.5, 0)
 LoadingOverlay.BackgroundTransparency = 1
-LoadingOverlay.Image = "rbxassetid://125629567237903"
+LoadingOverlay.Image = "rbxassetid://106586504083934"
 LoadingOverlay.ScaleType = Enum.ScaleType.Stretch
 LoadingOverlay.ImageTransparency = 0
 LoadingOverlay.BorderSizePixel = 0
@@ -516,20 +747,97 @@ local function FormatTrackDisplayName(raw)
 	return name
 end
 
+local function GetModelBoundingBox(model)
+	local minX, minY, minZ = math.huge, math.huge, math.huge
+	local maxX, maxY, maxZ = -math.huge, -math.huge, -math.huge
+
+	for _, desc in pairs(model:GetDescendants()) do
+		if desc:IsA("BasePart") then
+			local cf = desc.CFrame
+			local size = desc.Size
+			-- Approximate AABB from part corners
+			for _, dx in ipairs({-0.5, 0.5}) do
+				for _, dy in ipairs({-0.5, 0.5}) do
+					for _, dz in ipairs({-0.5, 0.5}) do
+						local corner = cf:PointToWorldSpace(Vector3.new(size.X * dx, size.Y * dy, size.Z * dz))
+						minX = math.min(minX, corner.X)
+						minY = math.min(minY, corner.Y)
+						minZ = math.min(minZ, corner.Z)
+						maxX = math.max(maxX, corner.X)
+						maxY = math.max(maxY, corner.Y)
+						maxZ = math.max(maxZ, corner.Z)
+					end
+				end
+			end
+		end
+	end
+
+	local center = Vector3.new((minX + maxX) / 2, (minY + maxY) / 2, (minZ + maxZ) / 2)
+	local extents = Vector3.new(maxX - minX, maxY - minY, maxZ - minZ)
+	return center, extents
+end
+
+local function CreatePreviewCamera(model)
+	local cam = Instance.new("Camera")
+	cam.FieldOfView = 50
+
+	-- Bounding-box overview: frame the entire track from an elevated isometric angle
+	local center, extents = GetModelBoundingBox(model)
+	local maxHorizontal = math.max(extents.X, extents.Z)
+	local verticalExtent = extents.Y
+	local halfFOV = math.rad(50 / 2)
+	local distance = ((maxHorizontal / 2) / math.tan(halfFOV) + verticalExtent) * 0.5
+
+	-- Elevated isometric view with slight yaw for visual interest
+	local pitch = math.rad(50) -- ~50 degrees above horizontal
+	local yaw = math.rad(25)   -- slight angle offset
+	local offset = Vector3.new(
+		distance * math.cos(pitch) * math.sin(yaw),
+		distance * math.sin(pitch),
+		distance * math.cos(pitch) * math.cos(yaw)
+	)
+	cam.CFrame = CFrame.lookAt(center + offset, center)
+
+	return cam
+end
+
 local function ShowScreen(screen)
 	currentScreen = screen
+
+	-- Sink scroll wheel input so it doesn't affect the game camera
+	if screen == "picker" or screen == "detail" then
+		SinkScroll()
+	else
+		UnsinkScroll()
+	end
+
 	CancelButton.Visible = (screen == "racing")
 	GameplayFrame.Visible = (screen == "racing" or screen == "finish")
 
 	-- Picker entrance animation
 	if screen == "picker" then
 		PickerFrame.Visible = true
+		-- Reset picker internals to visible/centered positions
+		TrackScroller.Position = UDim2.new(0.04, 0, 0.15, 0)
+		HeaderFrame.Position = UDim2.new(0, 0, 0, 0)
+		ReturnButton.Visible = true
+		ReturnButton.TextTransparency = 0
+		ReturnButton.BackgroundTransparency = 0
+
 		PickerFrame.Position = UDim2.new(0.5, 0, 1.5, 0) -- start below screen
 		TweenService:Create(PickerFrame, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
 			Position = UDim2.new(0.5, 0, 0.5, 0)
 		}):Play()
+	elseif screen == "detail" then
+		-- Keep PickerFrame visible for animation but don't re-animate entrance
+		PickerFrame.Visible = true
 	else
 		PickerFrame.Visible = false
+	end
+
+	-- Detail modal visibility (managed by transition animations)
+	if screen ~= "detail" then
+		DetailModal.Visible = false
 	end
 
 	-- RaceEndMenu / PersonalResultsFrame for results
@@ -596,6 +904,8 @@ local function ShowLoadingScreen(trkName)
 		if stroke then stroke.Transparency = 0 end
 	end
 
+	LoadingOverlay.AnchorPoint = Vector2.new(0.5, 0.5)
+	LoadingOverlay.Position = UDim2.new(0.5, 0, 0.5, 0)
 	LoadingOverlay.Visible = true
 	loadingStartTime = tick()
 end
@@ -603,18 +913,19 @@ end
 local function HideLoadingScreen()
 	-- Slide the loading overlay off-screen to the left like a curtain
 	LoadingOverlay.AnchorPoint = Vector2.new(0, 0)
-	LoadingOverlay.Position = UDim2.new(0, 0, 0, 0)
+	LoadingOverlay.Position = UDim2.new(-0.5, 0, -0.5, 0)
 
 	local slideInfo = TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
 	local slideTween = TweenService:Create(LoadingOverlay, slideInfo, {
-		Position = UDim2.new(-1, 0, 0, 0)
+		Position = UDim2.new(-2, 0, -0.5, 0)
 	})
 	slideTween:Play()
 	slideTween.Completed:Wait()
 
 	-- Reset and hide
 	LoadingOverlay.Visible = false
-	LoadingOverlay.Position = UDim2.new(0, 0, 0, 0)
+	LoadingOverlay.AnchorPoint = Vector2.new(0.5, 0.5)
+	LoadingOverlay.Position = UDim2.new(0.5, 0, 0.5, 0)
 	LoadingOverlay.ImageTransparency = 0
 end
 
@@ -637,55 +948,162 @@ local function UpdateStatsPill(tracks)
 	end
 end
 
+-- ============================================================
+-- DETAIL MODAL TRANSITIONS
+-- ============================================================
+
+local function PopulateDetailModal(trkName)
+	-- Set track name
+	DetailTrackName.Text = FormatTrackDisplayName(trkName)
+
+	-- Set PB
+	local pb = GetPlayerPB(trkName)
+	if pb then
+		DetailPBLabel.Text = "Personal Best: " .. FormatTime(pb)
+		DetailPBLabel.TextColor3 = Color3.fromRGB(255, 230, 44)
+	else
+		DetailPBLabel.Text = "No time set"
+		DetailPBLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+	end
+
+	-- Clear old viewport contents
+	for _, child in pairs(DetailViewport:GetChildren()) do
+		if child:IsA("Model") or child:IsA("Camera") then
+			child:Destroy()
+		end
+	end
+
+	-- Clone track preview model + camera into the large viewport
+	if TrackPreviews then
+		local previewModel = TrackPreviews:FindFirstChild(trkName)
+		if previewModel then
+			local clone = previewModel:Clone()
+			clone.Parent = DetailViewport
+
+			local cam = CreatePreviewCamera(clone)
+			cam.Parent = DetailViewport
+			DetailViewport.CurrentCamera = cam
+
+			-- Initialize orbit camera from bounding box
+			local center, extents = GetModelBoundingBox(clone)
+			detailCameraCenter = center
+			local maxExtent = math.max(extents.X, extents.Y, extents.Z)
+			detailCameraMinDist = maxExtent * 0.3
+			detailCameraMaxDist = maxExtent * 4
+
+			-- Derive initial yaw/pitch/distance from the camera CFrame
+			local camOffset = cam.CFrame.Position - center
+			detailCameraDistance = camOffset.Magnitude
+			detailCameraPitch = math.asin(math.clamp(camOffset.Y / detailCameraDistance, -1, 1))
+			detailCameraYaw = math.atan2(camOffset.X, camOffset.Z)
+		end
+	end
+end
+
+local function AnimateGridToDetail(trkName)
+	-- Store the track name for the detail modal
+	lastSelectedTrack = trkName
+
+	-- Populate modal content
+	PopulateDetailModal(trkName)
+
+	-- Animate grid elements out to the left
+	local tweenInfo = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+
+	local scrollerTween = TweenService:Create(TrackScroller, tweenInfo, {
+		Position = UDim2.new(-1, 0, 0.15, 0)
+	})
+	local headerTween = TweenService:Create(HeaderFrame, tweenInfo, {
+		Position = UDim2.new(-1, 0, 0, 0)
+	})
+
+	-- Use BackgroundTransparency for ReturnButton fade since TextButton doesn't have GroupTransparency
+	local returnFadeInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+	local returnBgTween = TweenService:Create(ReturnButton, returnFadeInfo, {
+		TextTransparency = 1,
+		BackgroundTransparency = 1
+	})
+
+	scrollerTween:Play()
+	headerTween:Play()
+	returnBgTween:Play()
+
+	scrollerTween.Completed:Wait()
+
+	-- Hide picker internals, show detail modal
+	ReturnButton.Visible = false
+
+	-- Show detail modal with scale-up animation
+	currentScreen = "detail"
+	DetailModal.Visible = true
+	DetailModalScale.Scale = 0.8
+	DetailModal.BackgroundTransparency = 1
+	DetailTrackName.TextTransparency = 1
+	DetailPBLabel.TextTransparency = 1
+	DetailPlayButton.TextTransparency = 1
+	DetailPlayButton.BackgroundTransparency = 1
+	DetailBackButton.TextTransparency = 1
+	DetailBackButton.BackgroundTransparency = 1
+	DetailViewport.ImageTransparency = 1
+
+	local modalTweenInfo = TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
+	TweenService:Create(DetailModalScale, modalTweenInfo, {Scale = 1}):Play()
+	TweenService:Create(DetailModal, modalTweenInfo, {BackgroundTransparency = 0}):Play()
+	TweenService:Create(DetailTrackName, modalTweenInfo, {TextTransparency = 0}):Play()
+	TweenService:Create(DetailPBLabel, modalTweenInfo, {TextTransparency = 0}):Play()
+	TweenService:Create(DetailPlayButton, modalTweenInfo, {TextTransparency = 0, BackgroundTransparency = 0}):Play()
+	TweenService:Create(DetailBackButton, modalTweenInfo, {TextTransparency = 0, BackgroundTransparency = 0}):Play()
+	TweenService:Create(DetailViewport, modalTweenInfo, {ImageTransparency = 0}):Play()
+
+	-- Fade in strokes
+	DetailModalStroke.Transparency = 1
+	DetailPlayStroke.Transparency = 1
+	DetailBackStroke.Transparency = 1
+	DetailTrackNameStroke.Transparency = 1
+	TweenService:Create(DetailModalStroke, modalTweenInfo, {Transparency = 0.5}):Play()
+	TweenService:Create(DetailPlayStroke, modalTweenInfo, {Transparency = 0}):Play()
+	TweenService:Create(DetailBackStroke, modalTweenInfo, {Transparency = 0}):Play()
+	TweenService:Create(DetailTrackNameStroke, modalTweenInfo, {Transparency = 0}):Play()
+end
+
+local function AnimateDetailToGrid()
+	-- Animate modal out (scale down + fade)
+	local modalOutInfo = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+	TweenService:Create(DetailModalScale, modalOutInfo, {Scale = 0.8}):Play()
+	TweenService:Create(DetailModal, modalOutInfo, {BackgroundTransparency = 1}):Play()
+	TweenService:Create(DetailTrackName, modalOutInfo, {TextTransparency = 1}):Play()
+	TweenService:Create(DetailPBLabel, modalOutInfo, {TextTransparency = 1}):Play()
+	TweenService:Create(DetailPlayButton, modalOutInfo, {TextTransparency = 1, BackgroundTransparency = 1}):Play()
+	TweenService:Create(DetailBackButton, modalOutInfo, {TextTransparency = 1, BackgroundTransparency = 1}):Play()
+	local viewportTween = TweenService:Create(DetailViewport, modalOutInfo, {ImageTransparency = 1})
+	viewportTween:Play()
+	viewportTween.Completed:Wait()
+
+	DetailModal.Visible = false
+	DetailModalScale.Scale = 1
+
+	-- Animate grid back in from left
+	ReturnButton.Visible = true
+	ReturnButton.TextTransparency = 1
+	ReturnButton.BackgroundTransparency = 1
+
+	local gridInInfo = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	TweenService:Create(TrackScroller, gridInInfo, {
+		Position = UDim2.new(0.04, 0, 0.15, 0)
+	}):Play()
+	TweenService:Create(HeaderFrame, gridInInfo, {
+		Position = UDim2.new(0, 0, 0, 0)
+	}):Play()
+	TweenService:Create(ReturnButton, gridInInfo, {
+		TextTransparency = 0,
+		BackgroundTransparency = 0
+	}):Play()
+
+	currentScreen = "picker"
+end
+
 local DEFAULT_CARD_COLOR = Color3.fromRGB(20, 30, 55)
 local HOVER_CARD_COLOR = Color3.fromRGB(30, 42, 75)
-
-local TRACK_IMAGES = {
-	["06_20_CaveCrystal"] = "rbxassetid://0",
-	["06_20_TheMoon"] = "rbxassetid://0",
-	["06_20_UndergroundCave"] = "rbxassetid://0",
-	["Alpine"] = "rbxassetid://0",
-	["CoolTrack"] = "rbxassetid://0",
-	["DesertLeftVibe"] = "rbxassetid://0",
-	["DesertRightVibe"] = "rbxassetid://0",
-	["FrostyField"] = "rbxassetid://0",
-	["GrassLeftVibe"] = "rbxassetid://0",
-	["GrassRightVibe"] = "rbxassetid://0",
-	["GrassSecretWall"] = "rbxassetid://0",
-	["GrassTightrope"] = "rbxassetid://0",
-	["Hops"] = "rbxassetid://0",
-	["IceTunnel"] = "rbxassetid://0",
-	["LongJump"] = "rbxassetid://0",
-	["Magma"] = "rbxassetid://0",
-	["MysticForest"] = "rbxassetid://0",
-	["NeonCity"] = "rbxassetid://0",
-	["OceanBreeze"] = "rbxassetid://0",
-	["Pipeline"] = "rbxassetid://0",
-	["RaceSimple"] = "rbxassetid://0",
-	["RaceTwoOptions"] = "rbxassetid://0",
-	["Race_WithHatSecret"] = "rbxassetid://0",
-	["RainbowArches"] = "rbxassetid://0",
-	["RainbowEzStreet"] = "rbxassetid://0",
-	["RainbowJumps"] = "rbxassetid://0",
-	["SkyBridge"] = "rbxassetid://0",
-	["SnowySlopes"] = "rbxassetid://0",
-	["SpaceStation"] = "rbxassetid://0",
-	["Studs_MooMooMeadows"] = "rbxassetid://0",
-	["SunsetBeach"] = "rbxassetid://0",
-	["Tightrope"] = "rbxassetid://0",
-	["TropicalIsland"] = "rbxassetid://0",
-	["TwilightCavern"] = "rbxassetid://0",
-	["Vacuum"] = "rbxassetid://0",
-	["Vertigo"] = "rbxassetid://0",
-	["VolcanicRun"] = "rbxassetid://0",
-	["WashingMachine"] = "rbxassetid://0",
-	["Waterslide"] = "rbxassetid://0",
-	["WindyPeaks"] = "rbxassetid://0",
-	["Wipeout"] = "rbxassetid://0",
-	["Zen"] = "rbxassetid://0",
-	["Zigzag"] = "rbxassetid://0",
-	["Zoomway"] = "rbxassetid://0",
-}
 
 local function PopulateTrackList(tracks)
 	-- Clear existing entries
@@ -726,22 +1144,24 @@ local function PopulateTrackList(tracks)
 		accentBar.BorderSizePixel = 0
 		accentBar.Parent = entry
 
-		-- Track thumbnail image
-		local thumbnail = Instance.new("ImageLabel")
-		thumbnail.Name = "Thumbnail"
-		thumbnail.Size = UDim2.new(0.5, -6, 1, -8)
-		thumbnail.Position = UDim2.new(0.015, 0, 0, 4)
-		thumbnail.BackgroundColor3 = Color3.fromRGB(20, 25, 45)
-		thumbnail.BorderSizePixel = 0
-		thumbnail.Image = TRACK_IMAGES[trkName] or "rbxassetid://0"
-		thumbnail.ScaleType = Enum.ScaleType.Crop
-		thumbnail.Parent = entry
+		-- Track 3D preview viewport
+		local viewport = Instance.new("ViewportFrame")
+		viewport.Name = "Thumbnail"
+		viewport.Size = UDim2.new(0.5, -6, 1, -8)
+		viewport.Position = UDim2.new(0.015, 0, 0, 4)
+		viewport.BackgroundColor3 = Color3.fromRGB(20, 25, 45)
+		viewport.BorderSizePixel = 0
+		viewport.Ambient = Color3.fromRGB(180, 180, 180)
+		viewport.LightColor = Color3.fromRGB(255, 255, 255)
+		viewport.LightDirection = Vector3.new(-1, -1, -1)
+		viewport.Parent = entry
+		viewport:SetAttribute("TrackName", trkName)
 
 		local thumbCorner = Instance.new("UICorner")
 		thumbCorner.CornerRadius = UDim.new(0.06, 0)
-		thumbCorner.Parent = thumbnail
+		thumbCorner.Parent = viewport
 
-		-- Fallback number label (visible when placeholder image is blank)
+		-- Fallback number label (visible while 3D preview loads)
 		local thumbFallback = Instance.new("TextLabel")
 		thumbFallback.Name = "FallbackLabel"
 		thumbFallback.Size = UDim2.new(1, 0, 1, 0)
@@ -750,7 +1170,7 @@ local function PopulateTrackList(tracks)
 		thumbFallback.TextColor3 = Color3.fromRGB(60, 70, 100)
 		thumbFallback.TextScaled = true
 		thumbFallback.Font = Enum.Font.FredokaOne
-		thumbFallback.Parent = thumbnail
+		thumbFallback.Parent = viewport
 
 		-- Completion circle
 		local circle = Instance.new("Frame")
@@ -841,16 +1261,15 @@ local function PopulateTrackList(tracks)
 		end)
 
 		entry.MouseButton1Click:Connect(function()
+			SoundManager:Fire("Player", "UI_Click")
 			-- Brief press-in animation
 			local pressIn = TweenService:Create(entryScale, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Scale = 0.97})
 			pressIn:Play()
 			pressIn.Completed:Wait()
 			TweenService:Create(entryScale, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Scale = 1}):Play()
 
-			lastSelectedTrack = trkName
-			ShowScreen("waiting")
-			ShowLoadingScreen(trkName)
-			SelectTrackRemote:FireServer(trkName)
+			-- Open detail modal instead of immediately starting
+			AnimateGridToDetail(trkName)
 		end)
 	end
 
@@ -860,6 +1279,39 @@ local function PopulateTrackList(tracks)
 
 	-- Update stats pill
 	UpdateStatsPill(tracks)
+end
+
+local function PopulateViewports()
+	if not TrackPreviews then return end
+
+	for _, child in pairs(TrackScroller:GetChildren()) do
+		if not child:IsA("TextButton") then continue end
+
+		local viewport = child:FindFirstChild("Thumbnail")
+		if not viewport or not viewport:IsA("ViewportFrame") then continue end
+
+		local trkName = viewport:GetAttribute("TrackName")
+		if not trkName then continue end
+
+		local previewModel = TrackPreviews:FindFirstChild(trkName)
+		if not previewModel then continue end
+
+		local clone = previewModel:Clone()
+		clone.Parent = viewport
+
+		local cam = CreatePreviewCamera(clone)
+		cam.Parent = viewport
+		viewport.CurrentCamera = cam
+
+		-- Hide fallback label now that 3D preview is loaded
+		local fallback = viewport:FindFirstChild("FallbackLabel")
+		if fallback then
+			fallback.Visible = false
+		end
+
+		-- Stagger GPU load across frames
+		task.wait()
+	end
 end
 
 local function CreateSplitsPanel(numSegments)
@@ -1453,7 +1905,6 @@ local function StartTimer()
 							local bindables = ReplicatedStorage.Networking.Client.BindableEvents
 							bindables.SoundManager:Fire("Player", "Checkpoint")
 							bindables.Play_VFX:Fire("Player", "Checkpoint")
-							bindables.TriggerCheckpoint_UI:Fire()
 							bindables.SendNotification:Fire(notifText, notifColor)
 						end
 					end
@@ -1527,6 +1978,11 @@ end
 local function ShowFinishSplash(elapsed)
 	-- Set the finish time
 	FinishTimeLabel.Text = FormatTime(elapsed)
+
+	-- Ensure FinishImage is visible (safety net)
+	if FinishImage then
+		FinishImage.ImageTransparency = 0
+	end
 
 	-- Reset FinishFrame to off-screen right
 	FinishFrame.Position = UDim2.new(1, 0, 0.5, 0)
@@ -1644,6 +2100,7 @@ TrackListRemote.OnClientEvent:Connect(function(tracks)
 	trackNames = tracks
 	PopulateTrackList(tracks)
 	ShowScreen("picker")
+	task.spawn(PopulateViewports)
 end)
 
 SendBestSplitsRemote.OnClientEvent:Connect(function(splits)
@@ -1676,14 +2133,33 @@ end)
 ShowTimeTrialResultsRemote.OnClientEvent:Connect(function(elapsed, previousPB, isNewPB, trkName)
 	StopTimer()
 
-	-- Stop the seal dead in its tracks until the player starts a new run or returns to picker
+	-- Trigger SappyControls speed reduction (same as main game's RaceFinishScript)
+	local bindables = ReplicatedStorage.Networking.Client.BindableEvents
+	bindables.SpeedReduce:Fire()
+
+	-- Brake the seal: immediately cut most speed, then ease the rest to a smooth stop
 	local character = Player.Character
 	if character and character.Parent then
 		local sealRoot = character.Parent:FindFirstChild("SealRoot")
 		if sealRoot then
-			sealRoot.AssemblyLinearVelocity = Vector3.zero
-			sealRoot.AssemblyAngularVelocity = Vector3.zero
-			sealRoot.Anchored = true
+			-- Hard initial cut — kill 85% of velocity on the first frame to prevent phasing
+			sealRoot.AssemblyLinearVelocity = sealRoot.AssemblyLinearVelocity * 0.15
+			sealRoot.AssemblyAngularVelocity = sealRoot.AssemblyAngularVelocity * 0.15
+
+			-- Ease the remaining 15% to zero over 0.3s
+			local brakeSteps = 6
+			local dt = 0.3 / brakeSteps
+			for i = 1, brakeSteps do
+				if not sealRoot or not sealRoot.Parent then break end
+				sealRoot.AssemblyLinearVelocity = sealRoot.AssemblyLinearVelocity * 0.5
+				sealRoot.AssemblyAngularVelocity = sealRoot.AssemblyAngularVelocity * 0.5
+				task.wait(dt)
+			end
+			if sealRoot and sealRoot.Parent then
+				sealRoot.AssemblyLinearVelocity = Vector3.zero
+				sealRoot.AssemblyAngularVelocity = Vector3.zero
+				sealRoot.Anchored = true
+			end
 		end
 	end
 
@@ -1721,11 +2197,29 @@ end
 
 -- Button handlers
 ReturnButton.MouseButton1Click:Connect(function()
+	SoundManager:Fire("Player", "UI_Click")
 	ReturnToLobbyRemote:FireServer()
+end)
+
+-- Detail modal button handlers
+DetailPlayButton.MouseButton1Click:Connect(function()
+	SoundManager:Fire("Player", "UI_Click")
+	if not lastSelectedTrack then return end
+	DetailModal.Visible = false
+	ShowScreen("waiting")
+	ShowLoadingScreen(lastSelectedTrack)
+	SelectTrackRemote:FireServer(lastSelectedTrack)
+end)
+
+DetailBackButton.MouseButton1Click:Connect(function()
+	SoundManager:Fire("Player", "UI_Click")
+	RefreshPickerPBs()
+	AnimateDetailToGrid()
 end)
 
 -- RaceEndMenu button handlers (custom buttons)
 RetryButton.MouseButton1Click:Connect(function()
+	SoundManager:Fire("Player", "UI_Click")
 	-- RETRY → replay same track
 	UnanchorSeal()
 	RaceFinishFrame.Visible = false
@@ -1737,6 +2231,7 @@ RetryButton.MouseButton1Click:Connect(function()
 end)
 
 NewTrackButton.MouseButton1Click:Connect(function()
+	SoundManager:Fire("Player", "UI_Click")
 	-- SELECT NEW TRACK → return to track picker
 	UnanchorSeal()
 	RaceFinishFrame.Visible = false
@@ -1745,6 +2240,7 @@ NewTrackButton.MouseButton1Click:Connect(function()
 end)
 
 CancelButton.MouseButton1Click:Connect(function()
+	SoundManager:Fire("Player", "UI_Click")
 	UnanchorSeal()
 	CancelRunRemote:FireServer()
 	StopTimer()

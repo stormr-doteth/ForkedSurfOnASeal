@@ -62,6 +62,47 @@ local PlayerStates = {} -- { [Player] = { trackName, startTime, running } }
 local PlayerReportedSplits = {} -- { [Player] = { split1, split2, ... } }
 
 
+-- Build stripped-down track previews for client ViewportFrames --
+
+local STRIP_CLASSES = {
+	"Script", "LocalScript", "ModuleScript",
+	"Sound", "ParticleEmitter", "Fire", "Smoke", "Sparkles", "Trail",
+	"PointLight", "SpotLight", "SurfaceLight",
+	"BodyForce", "BodyGyro", "BodyPosition", "BodyVelocity",
+	"AlignPosition", "AlignOrientation", "LinearVelocity", "AngularVelocity",
+	"BallSocketConstraint", "HingeConstraint", "RopeConstraint", "SpringConstraint", "WeldConstraint",
+	"ProximityPrompt", "ClickDetector",
+	"BillboardGui", "SurfaceGui", "ScreenGui",
+}
+
+local TrackPreviewsFolder = Instance.new("Folder")
+TrackPreviewsFolder.Name = "TrackPreviews"
+TrackPreviewsFolder.Parent = game.ReplicatedStorage
+
+for _, segment in pairs(game.ServerStorage.TrackSegments:GetChildren()) do
+	local preview = segment:Clone()
+
+	-- Strip non-visual descendants
+	for _, desc in pairs(preview:GetDescendants()) do
+		for _, className in ipairs(STRIP_CLASSES) do
+			if desc:IsA(className) then
+				desc:Destroy()
+				break
+			end
+		end
+	end
+
+	-- Anchor all BaseParts so nothing simulates
+	for _, desc in pairs(preview:GetDescendants()) do
+		if desc:IsA("BasePart") then
+			desc.Anchored = true
+		end
+	end
+
+	preview.Parent = TrackPreviewsFolder
+end
+
+
 -- Functions --
 
 local function GetBestSplits(player, trackName)
@@ -141,18 +182,14 @@ local function BuildTimeTrialTrack(segmentName)
 		NewSegment.TrackStart.Transparency = 1
 		NewSegment.TrackEnd.Transparency = 1
 
-		-- Remove checkpoint arch from first segment, disable effects on others
-		local arch = NewSegment:FindFirstChild("CheckpointArch")
-		if arch then
-			if i == 1 then
-				arch:Destroy()
-			else
-				local teleportDest = arch:FindFirstChild("TeleportDestination")
-				if teleportDest then
-					local effectScript = teleportDest:FindFirstChild("CheckpointEffectScript")
-					if effectScript then
-						effectScript.Disabled = true
-					end
+		-- Disable the built-in CheckpointEffectScript so only TimeTrialUI handles checkpoint notifications
+		local checkpointSystem = NewSegment:FindFirstChild("CheckpointSystem")
+		if checkpointSystem then
+			local teleportDest = checkpointSystem:FindFirstChild("TeleportDestination")
+			if teleportDest then
+				local effectScript = teleportDest:FindFirstChild("CheckpointEffectScript")
+				if effectScript then
+					effectScript.Disabled = true
 				end
 			end
 		end
